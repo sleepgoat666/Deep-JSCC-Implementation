@@ -11,7 +11,31 @@ from torch.utils.data import DataLoader
 from torchvision import datasets, transforms
 
 from models import DeepJSCC
-from eval import eval_psnr
+from metrics import psnr
+
+@torch.no_grad()
+def eval_psnr_swipt(model, loader, device, snr_db, rho, eta):
+    """
+    Evaluate PSNR for SWIPT model.
+    
+    Args:
+        model: DeepJSCC model
+        loader: Data loader
+        device: Device (cuda/cpu)
+        snr_db: SNR in dB
+        rho: Power splitting ratio
+        eta: Energy harvesting efficiency
+    
+    Returns:
+        Average PSNR
+    """
+    model.eval()
+    acc = 0.0
+    for x, _ in loader:
+        x = x.to(device)
+        xhat, _ = model(x, snr_db, use_swipt=True, rho=rho, eta=eta)
+        acc += psnr(x, xhat).item() * x.size(0)
+    return acc / len(loader.dataset)
 
 def train_one_epoch_swipt(model, loader, opt, device, snr_train, rho, eta, lambda_energy):
     """
@@ -105,7 +129,7 @@ def main():
                 model, train_loader, opt, device, snr_train=snr_tr,
                 rho=rho, eta=eta, lambda_energy=lambda_energy
             )
-            p = eval_psnr(model, test_loader, device, snr_db=snr_tr)
+            p = eval_psnr_swipt(model, test_loader, device, snr_db=snr_tr, rho=rho, eta=eta)
             print(f"Epoch {epoch:02d} | loss={tr_loss:.6f} | mse={tr_mse:.6f} | energy={tr_energy:.6f} | PSNR@{snr_tr}dB={p:.2f}", flush=True)
 
         ckpt_path = f"checkpoints_swipt/deepjscc_swipt_snrtrain_{snr_tr}dB_rho{rho}.pth"

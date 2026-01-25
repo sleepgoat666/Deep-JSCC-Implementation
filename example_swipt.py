@@ -8,6 +8,7 @@ This shows how to use the SWIPT functionality for energy-aware communication.
 import torch
 from torch.utils.data import TensorDataset, DataLoader
 from models import DeepJSCC
+from metrics import psnr
 
 def example_basic_swipt():
     """Example 1: Basic SWIPT usage."""
@@ -148,10 +149,9 @@ def example_re_tradeoff_analysis():
                 
                 for x, _ in loader:
                     xhat, energy = model(x, snr_db=snr, use_swipt=True, rho=rho, eta=0.8)
-                    mse = torch.nn.functional.mse_loss(xhat, x)
-                    psnr = 10 * torch.log10(1.0 / mse)
+                    batch_psnr = psnr(x, xhat)
                     
-                    total_psnr += psnr.item() * x.size(0)
+                    total_psnr += batch_psnr.item() * x.size(0)
                     total_energy += energy.mean().item() * x.size(0)
                 
                 avg_psnr = total_psnr / len(dataset)
