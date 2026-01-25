@@ -55,6 +55,19 @@ E_harvested = η · ρ · |y|²
 ```
 where `y` is the received signal.
 
+### Quick Start: SWIPT Examples
+
+Run the example script to see SWIPT in action:
+```bash
+python example_swipt.py
+```
+
+This demonstrates:
+- Basic SWIPT usage
+- Power splitting ratio sweep
+- Training with SWIPT objective
+- Rate-Energy tradeoff analysis
+
 ### SWIPT Training
 
 Train Deep JSCC with SWIPT using:
@@ -104,4 +117,13 @@ xhat = model(x, snr_db=10, use_swipt=False)
 ### Dynamic Power Splitting
 
 You can dynamically adjust ρ during training or evaluation to explore different operating points on the R-E curve. The `eval_re_curve.py` script demonstrates this by sweeping through different ρ values.
+
+### Running Tests
+
+Verify the SWIPT implementation with the test suite:
+```bash
+python test_swipt.py              # Test SWIPT channel and model
+python test_swipt_training.py     # Test training loop
+python test_re_eval.py            # Test R-E evaluation
+```
 
