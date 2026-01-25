@@ -39,10 +39,12 @@ def swipt_channel(y, rho, eta, snr_db):
     """
     # Split power: (1-rho) for information decoding, rho for energy harvesting
     # Information decoding signal
-    y_id = torch.sqrt(1 - rho) * y
+    sqrt_1_minus_rho = torch.sqrt(torch.tensor(1 - rho, device=y.device, dtype=y.dtype))
+    y_id = sqrt_1_minus_rho * y
     
     # Energy harvesting signal
-    y_eh = torch.sqrt(rho) * y
+    sqrt_rho = torch.sqrt(torch.tensor(rho, device=y.device, dtype=y.dtype))
+    y_eh = sqrt_rho * y
     
     # Compute harvested energy: E_harvested = eta * rho * |y|^2
     # Mean over all dimensions except batch
