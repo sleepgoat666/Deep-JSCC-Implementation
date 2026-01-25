@@ -22,3 +22,33 @@ def awgn(x, snr_db):
         torch.tensor(noise_var, device=x.device, dtype=x.dtype)
     )
     return x + noise
+
+def swipt_channel(y, rho, eta, snr_db):
+    """
+    SWIPT channel with power splitting.
+    
+    Args:
+        y: Received signal (B, C, H, W)
+        rho: Power splitting ratio for energy harvesting (0 <= rho <= 1)
+        eta: Energy harvesting efficiency (0 <= eta <= 1)
+        snr_db: SNR in dB for information decoding path
+    
+    Returns:
+        y_id: Signal for information decoding with (1-rho) power
+        e_harvested: Harvested energy
+    """
+    # Split power: (1-rho) for information decoding, rho for energy harvesting
+    # Information decoding signal
+    y_id = torch.sqrt(1 - rho) * y
+    
+    # Energy harvesting signal
+    y_eh = torch.sqrt(rho) * y
+    
+    # Compute harvested energy: E_harvested = eta * rho * |y|^2
+    # Mean over all dimensions except batch
+    e_harvested = eta * rho * (y.pow(2).mean(dim=(1, 2, 3)))
+    
+    # Add AWGN to information decoding path
+    y_id = awgn(y_id, snr_db)
+    
+    return y_id, e_harvested

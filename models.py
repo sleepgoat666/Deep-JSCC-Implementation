@@ -9,7 +9,7 @@ Original file is located at
 
 # models.py
 import torch.nn as nn
-from channel import power_normalize, awgn
+from channel import power_normalize, awgn, swipt_channel
 
 class Encoder(nn.Module):
     """
@@ -75,9 +75,29 @@ class DeepJSCC(nn.Module):
         self.enc = Encoder(latent_ch)
         self.dec = Decoder(latent_ch)
 
-    def forward(self, x, snr_db):
+    def forward(self, x, snr_db, use_swipt=False, rho=0.0, eta=0.8):
+        """
+        Forward pass with optional SWIPT.
+        
+        Args:
+            x: Input image (B, 3, H, W)
+            snr_db: SNR in dB
+            use_swipt: Whether to use SWIPT channel
+            rho: Power splitting ratio for energy harvesting (0 <= rho <= 1)
+            eta: Energy harvesting efficiency (0 <= eta <= 1)
+        
+        Returns:
+            If use_swipt=False: xhat (reconstructed image)
+            If use_swipt=True: (xhat, e_harvested)
+        """
         z = self.enc(x)
         z = power_normalize(z)
-        y = awgn(z, snr_db)
-        xhat = self.dec(y)
-        return xhat
+        
+        if use_swipt:
+            y, e_harvested = swipt_channel(z, rho, eta, snr_db)
+            xhat = self.dec(y)
+            return xhat, e_harvested
+        else:
+            y = awgn(z, snr_db)
+            xhat = self.dec(y)
+            return xhat
