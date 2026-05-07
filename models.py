@@ -9,7 +9,8 @@ Original file is located at
 
 # models.py
 import torch.nn as nn
-from channel import power_normalize, awgn
+from channel import power_normalize, awgn, swipt_awgn
+
 
 class Encoder(nn.Module):
     """
@@ -17,21 +18,18 @@ class Encoder(nn.Module):
       5x5x16/2 -> 5x5x32/2 -> 5x5x32/1 -> 5x5x32/1 -> 5x5xc/1
       each: conv + PReLU
     """
+
     def __init__(self, latent_ch=8):
         super().__init__()
         self.net = nn.Sequential(
             nn.Conv2d(3, 16, kernel_size=5, stride=2, padding=2),
             nn.PReLU(16),
-
             nn.Conv2d(16, 32, kernel_size=5, stride=2, padding=2),
             nn.PReLU(32),
-
             nn.Conv2d(32, 32, kernel_size=5, stride=1, padding=2),
             nn.PReLU(32),
-
             nn.Conv2d(32, 32, kernel_size=5, stride=1, padding=2),
             nn.PReLU(32),
-
             nn.Conv2d(32, latent_ch, kernel_size=5, stride=1, padding=2),
             nn.PReLU(latent_ch),
         )
@@ -39,28 +37,32 @@ class Encoder(nn.Module):
     def forward(self, x):
         return self.net(x)
 
+
 class Decoder(nn.Module):
     """
     Fig.2 Decoder:
       5x5x32/1 -> 5x5x32/1 -> 5x5x32/1 -> 5x5x16/2 -> 5x5x3/2(sigmoid)
       trans conv + PReLU, last: trans conv + sigmoid
     """
+
     def __init__(self, latent_ch=8):
         super().__init__()
         self.net = nn.Sequential(
-            nn.ConvTranspose2d(latent_ch, 32, kernel_size=5, stride=1, padding=2, output_padding=0),
+            nn.ConvTranspose2d(
+                latent_ch, 32, kernel_size=5, stride=1, padding=2, output_padding=0
+            ),
             nn.PReLU(32),
-
-            nn.ConvTranspose2d(32, 32, kernel_size=5, stride=1, padding=2, output_padding=0),
+            nn.ConvTranspose2d(
+                32, 32, kernel_size=5, stride=1, padding=2, output_padding=0
+            ),
             nn.PReLU(32),
-
-            nn.ConvTranspose2d(32, 32, kernel_size=5, stride=1, padding=2, output_padding=0),
+            nn.ConvTranspose2d(
+                32, 32, kernel_size=5, stride=1, padding=2, output_padding=0
+            ),
             nn.PReLU(32),
-
             # 8x8 -> 16x16 (stride=2). output_padding=1 to match size exactly
             nn.ConvTranspose2d(32, 16, kernel_size=5, stride=2, padding=2, output_padding=1),
             nn.PReLU(16),
-
             # 16x16 -> 32x32 (stride=2). output_padding=1 to match size exactly
             nn.ConvTranspose2d(16, 3, kernel_size=5, stride=2, padding=2, output_padding=1),
             nn.Sigmoid(),
@@ -68,6 +70,7 @@ class Decoder(nn.Module):
 
     def forward(self, z):
         return self.net(z)
+
 
 class DeepJSCC(nn.Module):
     def __init__(self, latent_ch=8):
@@ -81,3 +84,23 @@ class DeepJSCC(nn.Module):
         y = awgn(z, snr_db)
         xhat = self.dec(y)
         return xhat
+
+
+class SemanticSWIPTDeepJSCC(nn.Module):
+    def __init__(self, latent_ch=8):
+        super().__init__()
+        self.enc = Encoder(latent_ch)
+        self.task_dec = nn.Sequential(
+            nn.Conv2d(latent_ch, 32, kernel_size=3, padding=1),
+            nn.PReLU(32),
+            nn.AdaptiveAvgPool2d(1),
+            nn.Flatten(),
+            nn.Linear(32, 10),
+        )
+
+    def forward(self, x, snr_db, eta=0.5, h_ir=1.0, h_er=1.0):
+        z = self.enc(x)
+        z = power_normalize(z)
+        y_ir, harvested_energy = swipt_awgn(z, snr_db, eta=eta, h_ir=h_ir, h_er=h_er)
+        logits = self.task_dec(y_ir)
+        return logits, harvested_energy
