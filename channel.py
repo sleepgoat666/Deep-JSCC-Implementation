@@ -10,10 +10,12 @@ Original file is located at
 # channel.py
 import torch
 
+
 def power_normalize(x, eps=1e-8):
     # x: (B, C, H, W)
     p = x.pow(2).mean(dim=(1, 2, 3), keepdim=True).clamp_min(eps)
     return x / torch.sqrt(p)
+
 
 def awgn(x, snr_db):
     snr_lin = 10 ** (snr_db / 10)
@@ -22,3 +24,23 @@ def awgn(x, snr_db):
         torch.tensor(noise_var, device=x.device, dtype=x.dtype)
     )
     return x + noise
+
+
+def swipt_awgn(x, snr_db, eta=0.5, h_ir=1.0, h_er=1.0):
+    """
+    x: (B, C, H, W)
+    returns:
+      y_ir: (B, C, H, W)
+      harvested_energy: (B,)
+    """
+    snr_lin = 10 ** (snr_db / 10)
+    noise_var = 1.0 / snr_lin
+    noise = torch.randn_like(x) * torch.sqrt(
+        torch.tensor(noise_var, device=x.device, dtype=x.dtype)
+    )
+
+    y_ir = h_ir * x + noise
+    y_er = h_er * x
+    harvested_energy = eta * y_er.pow(2).mean(dim=(1, 2, 3))
+
+    return y_ir, harvested_energy
